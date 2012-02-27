@@ -16,7 +16,7 @@
 #You should have received a copy of the GNU General Public License
 #along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-version="0.1alpha1" # usefully for future incompatibilities
+version="0.1alpha2" # usefully for future incompatibilities
 
 _print_help() {
   cat <<"  EOF" | cut -c5-
@@ -27,10 +27,11 @@ _print_help() {
     current path, tracking the contents of every file below it.
 
     USAGE:
-    hashref [ [ -u ] [ -d ] ] | [ [ -v ] | [ -h ] ]
+    hashref [ [ -u ] [ -d ] [ -p ] ] | [ [ -v ] | [ -h ] ]
 
     OPTIONS:
       -u: deduplicate files
+      -p: purge before running
       -v: version
       -d: debug
       -h: this message
@@ -61,10 +62,12 @@ _print_help() {
 # parameter processing
 
 deduplicate=no
+purge=no
 
-while getopts udvh PARAM; do
+while getopts updvh PARAM; do
   case $PARAM in
     u) deduplicate=yes;;
+    p) purge=yes;;
     d) set -x;;
     v) echo "$version"; exit 0;;
     h) _print_help; exit 0;;
@@ -89,9 +92,13 @@ link() {
 }
 filter() {
   while read line; do
-    grep -q " $line$" INDEX || echo "$1"
+    grep -q " $line$" .hashref/INDEX || echo "$line"
   done
 }
+
+if [ "$purge" = yes ]; then
+  rm -rf .hashref
+fi
 
 tmp_cache=`mktemp`
 
@@ -99,7 +106,7 @@ tmp_cache=`mktemp`
 mkdir -p .hashref/objects
 
 # find file references
-find . -type f | grep -v '^.hashref/$' | sort > "$tmp_cache"
+find . -type f | grep -v '^./.hashref/' | sort > "$tmp_cache"
 
 # hash files
 if [ -e .hashref/INDEX ]; then

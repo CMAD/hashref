@@ -5,10 +5,11 @@ On execution the .hashref directory is created on the
 current path, tracking the contents of every file below it.
 
 USAGE:
-hashref [ [ -u ] [ -d ] ] | [ [ -v ] | [ -h ] ]
+hashref [ [ -u ] [ -d ] [ -p ] ] | [ [ -v ] | [ -h ] ]
 
 OPTIONS:
   -u: deduplicate files
+  -p: purge before running
   -v: version
   -d: debug
   -h: this message
