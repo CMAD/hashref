@@ -76,10 +76,10 @@ hash() {
   xargs -n1 -i{} sha1sum "{}"
 }
 ref() {
-  sed -r -e 's/(..)(.+)  (.+)/.hashref\/\1\/\2 "\3"/'
+  sed -r -e 's/(..)(.+)  (.+)/.hashref\/objects\/\1\/\2 "\3"/'
 }
 obj() {
- sed -r -e 's/(..)(.+)  (.+)/"\3" .hashref\/\1\/\2/'
+ sed -r -e 's/(..)(.+)  (.+)/"\3" .hashref\/objects\/\1\/\2/'
 }
 hashdir() {
   cut -d' ' -f1 | xargs -n1 dirname | sort -u | xargs mkdir 2>/dev/null
@@ -87,27 +87,38 @@ hashdir() {
 link() {
   xargs -n2 cp -l -f
 }
+filter() {
+  while read line; do
+    grep -q " $line$" INDEX || echo "$1"
+  done
+}
 
-mkdir .hashref
-
-cache_file=`mktemp`
-
-#TODO: don't hash everything every time
-find . -type f | grep -v '^.hashref/$' | hash > "$cache_file"
+tmp_cache=`mktemp`
 
 # initialize directory structure
-ref < "$cache_file" | hashdir
+mkdir -p .hashref/objects
 
-echo "$version"> .hashref/version
+# find file references
+find . -type f | grep -v '^.hashref/$' | sort > "$tmp_cache"
+
+# hash files
+if [ -e .hashref/INDEX ]; then
+  filter < "$tmp_cache" | hash >> .hashref/INDEX
+else
+  hash < "$tmp_cache" > .hashref/INDEX
+fi 
+
+# initialize directory structure
+ref < ".hashref/INDEX" | hashdir
+
+echo "$version"> .hashref/VERSION
 
 # create hardlinks
-obj < "$cache_file" | link
+obj < .hashref/INDEX | link
 
 if [ "$deduplicate" = yes ]; then
   # deduplicate files
-  ref < "$cache_file" | link
+  ref < .hashref/INDEX | link
 fi
 
-# destroy cache
-rm "$cache_file"
-
+rm "$tmp_cache"
