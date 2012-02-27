@@ -1,0 +1,111 @@
+#!/bin/sh
+
+#hashref: content based files references
+#Copyright (C) 2012 Carlos Antelo
+
+#This program is free software: you can redistribute it and/or modify
+#it under the terms of the GNU General Public License as published by
+#the Free Software Foundation, either version 3 of the License, or
+#(at your option) any later version.
+
+#This program is distributed in the hope that it will be useful,
+#but WITHOUT ANY WARRANTY; without even the implied warranty of
+#MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#GNU General Public License for more details.
+
+#You should have received a copy of the GNU General Public License
+#along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+version="0.1alpha1" # usefully for future incompatibilities
+
+_print_help() {
+  cat <<"  EOF" | cut -c5-
+    hashref provides a simple mechanism for tracking the 
+    content of files across renaming, and for deduplication.
+
+    On execution the .hashref directory is created on the 
+    current path, tracking the contents of every file below it.
+
+    USAGE:
+    hashref [ [ -u ] [ -d ] | [ -v ] | [ -h ] ]
+
+    OPTIONS:
+      -u: deduplicate files
+      -v: version
+      -d: debug
+      -h: this message
+
+
+    The hash of every file below the current folder is
+    calculated, and using it, every file is hardlinked
+    inside .hashref.
+
+    The first 2 characters of the hash, segregate the
+    folder hierarchy. The rest of the hash is used as
+    filename.
+
+    If the -u option is recived, the names of every 
+    file will be recreated with the same inode as those
+    under .hashref.
+    
+    A special file called version is kept inside .hashref
+    for future incompatibilities.
+
+    Instructing rsync to preserve hardlinks while including
+    .hashref will avoid the transfer of files on the basis
+    of renaming.
+
+  EOF
+}
+
+# parameter processing
+
+deduplicate=no
+
+while getopts udvh PARAM; do
+  case $PARAM in
+    u) deduplicate=yes;;
+    d) set -x;;
+    v) echo "$version"; exit 0;;
+    h) _print_help; exit 0;;
+   \?) _print_help; exit 1;;
+  esac
+done
+
+hash() {
+  xargs -n1 -i{} sha1sum "{}"
+}
+ref() {
+  sed -r -e 's/(..)(.+)  (.+)/.hashref\/\1\/\2 "\3"/'
+}
+obj() {
+ sed -r -e 's/(..)(.+)  (.+)/"\3" .hashref\/\1\/\2/'
+}
+hashdir() {
+  cut -d' ' -f1 | xargs -n1 dirname | sort -u | xargs mkdir 2>/dev/null
+}
+link() {
+  xargs -n2 cp -l -f
+}
+
+mkdir .hashref
+
+cache_file=`mktemp`
+
+#TODO: don't hash everything every time
+find . -type f | grep -v '^.hashref/$' | hash > "$cache_file"
+
+# initialize directory structure
+ref < "$cache_file" | hashdir
+
+# create hardlinks
+obj < "$cache_file" | link
+
+if [ "$deduplicate" = yes ]; then
+  # deduplicate files
+  ref < "$cache_file" | link
+fi
+
+# destroy cache
+rm "$cache_file"
+
