@@ -98,6 +98,8 @@ find . -type f | grep -v '^.hashref/$' | hash > "$cache_file"
 # initialize directory structure
 ref < "$cache_file" | hashdir
 
+echo "$version"> .hashref/version
+
 # create hardlinks
 obj < "$cache_file" | link
 
