@@ -69,7 +69,13 @@ while getopts f:pdvh PARAM; do
 done
 
 files() {
-  find . -type f -not -wholename '*/.hashref/*' -print0
+  # if it was run before, only include newer files
+  if [ -e .hashref/PREVIOUS ]; then
+    find . -type f -not -wholename '*/.hashref/*' \
+      -newer .hashref/PREVIOUS -print0
+  else
+    find . -type f -not -wholename '*/.hashref/*' -print0
+  fi
 }
 
 hlink() {
@@ -78,7 +84,7 @@ hlink() {
     # get a hash for the contents of the file 
     sha1_file=$(sha1sum "$filename" | cut -d' ' -f1)
 
-    # segregate files, using the first two characters as
+    # segregate files, using the first three characters as
     # a folder name
     mkdir -p .hashref/objects/$(echo "$sha1_file" | cut -c 1-3)
     object_name=$(echo "$sha1_file" | sed 's@...@&/@')
@@ -88,6 +94,7 @@ hlink() {
   done
 }
 
+# get on the working directory
 cd "$nextcwd"
 
 # clean the .hashref directory
@@ -95,9 +102,18 @@ if [ "$purge" = yes ]; then
   rm -rf .hashref
 fi
 
+# make sure there is a .hashref folder
+# to write into
+mkdir .hashref 2>/dev/null
+
+# save current timestamp
+touch .hashref/CURRENT
+
 # find and hardlink files
 files | hlink
 
-# usefully for future incompatibilities
-echo "$version"> .hashref/VERSION
+# update reference timestamp for newer files
+touch .hashref/PREVIOUS -r .hashref/CURRENT
 
+# usefull for future incompatibilities
+echo "$version"> .hashref/VERSION
