@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 #hashref: content based files references
 #Copyright (C) 2012 Carlos Antelo
@@ -16,40 +16,33 @@
 #You should have received a copy of the GNU General Public License
 #along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-version="0.1alpha2" # usefully for future incompatibilities
+version="0.1beta1" 
 
 _print_help() {
   cat <<"  EOF" | cut -c5-
     hashref provides a simple mechanism for tracking the 
-    content of files across renaming, and for deduplication.
+    content of files across renaming.
 
     On execution the .hashref directory is created on the 
     current path, tracking the contents of every file below it.
 
     USAGE:
-    hashref [ [ -u ] [ -d ] [ -p ] ] | [ [ -v ] | [ -h ] ]
+    hashref [ [ -f PATH ] [ -p ] [ -d ] ] | [ [ -v ] | [ -h ] ]
 
     OPTIONS:
-      -u: deduplicate files
+      -f: src folder
       -p: purge before running
-      -v: version
       -d: debug
+      -v: version
       -h: this message
 
+    Files are hardlinked inside the .hashref/objects folder
+    with a name matching it's sha1 hash.
 
-    The hash of every file below the current folder is
-    calculated, and using it, every file is hardlinked
-    inside .hashref.
+    The first 2 characters of the hash, correspond to a 
+    directory name, the rest is used for the actual filename. 
 
-    The first 2 characters of the hash, segregate the
-    folder hierarchy. The rest of the hash is used as
-    filename.
-
-    If the -u option is recived, the names of every 
-    file will be recreated with the same inode as those
-    under .hashref.
-    
-    A special file called version is kept inside .hashref
+    A special file called VERSION is kept inside .hashref
     for future incompatibilities.
 
     Instructing rsync to preserve hardlinks while including
@@ -61,12 +54,12 @@ _print_help() {
 
 # parameter processing
 
-deduplicate=no
 purge=no
+nextcwd=./
 
-while getopts updvh PARAM; do
+while getopts f:pdvh PARAM; do
   case $PARAM in
-    u) deduplicate=yes;;
+    f) nextcwd=$OPTARG;;
     p) purge=yes;;
     d) set -x;;
     v) echo "$version"; exit 0;;
@@ -75,57 +68,36 @@ while getopts updvh PARAM; do
   esac
 done
 
-hash() {
-  xargs -n1 -i{} sha1sum "{}"
+files() {
+  find . -type f -not -wholename '*/.hashref/*' -print0
 }
-ref() {
-  sed -r -e 's/(..)(.+)  (.+)/.hashref\/objects\/\1\/\2 "\3"/'
-}
-obj() {
- sed -r -e 's/(..)(.+)  (.+)/"\3" .hashref\/objects\/\1\/\2/'
-}
-hashdir() {
-  cut -d' ' -f1 | xargs -n1 dirname | sort -u | xargs mkdir 2>/dev/null
-}
-link() {
-  xargs -n2 cp -l -f
-}
-filter() {
-  while read line; do
-    grep -q " $line$" .hashref/INDEX || echo "$line"
+
+hlink() {
+  local IFS=''
+  while read -r -d $'\0' filename; do
+    # get a hash for the contents of the file 
+    sha1_file=$(sha1sum "$filename" | cut -d' ' -f1)
+
+    # segregate files, using the first two characters as
+    # a folder name
+    mkdir -p .hashref/objects/$(echo "$sha1_file" | cut -c 1-2)
+    object_name=$(echo "$sha1_file" | sed 's@..@&/@')
+
+    # hardlink the file using it's hash as filename
+    cp -l -f "./$filename" .hashref/objects/"$object_name"
   done
 }
 
+cd "$nextcwd"
+
+# clean the .hashref directory
 if [ "$purge" = yes ]; then
   rm -rf .hashref
 fi
 
-tmp_cache=`mktemp`
+# find and hardlink files
+files | hlink
 
-# initialize directory structure
-mkdir -p .hashref/objects
-
-# find file references
-find . -type f | grep -v '^./.hashref/' | sort > "$tmp_cache"
-
-# hash files
-if [ -e .hashref/INDEX ]; then
-  filter < "$tmp_cache" | hash >> .hashref/INDEX
-else
-  hash < "$tmp_cache" > .hashref/INDEX
-fi 
-
-# initialize directory structure
-ref < ".hashref/INDEX" | hashdir
-
+# usefully for future incompatibilities
 echo "$version"> .hashref/VERSION
 
-# create hardlinks
-obj < .hashref/INDEX | link
-
-if [ "$deduplicate" = yes ]; then
-  # deduplicate files
-  ref < .hashref/INDEX | link
-fi
-
-rm "$tmp_cache"

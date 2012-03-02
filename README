@@ -1,33 +1,26 @@
 hashref provides a simple mechanism for tracking the 
-content of files across renaming, and for deduplication.
+content of files across renaming.
 
 On execution the .hashref directory is created on the 
 current path, tracking the contents of every file below it.
 
 USAGE:
-hashref [ [ -u ] [ -d ] [ -p ] ] | [ [ -v ] | [ -h ] ]
+hashref [ [ -f PATH ] [ -p ] [ -d ] ] | [ [ -v ] | [ -h ] ]
 
 OPTIONS:
-  -u: deduplicate files
+  -f: src folder
   -p: purge before running
-  -v: version
   -d: debug
+  -v: version
   -h: this message
 
+Files are hardlinked inside the .hashref/objects folder
+with a name matching it's sha1 hash.
 
-The hash of every file below the current folder is
-calculated, and using it, every file is hardlinked
-inside .hashref.
+The first 2 characters of the hash, correspond to a 
+directory name, the rest is used for the actual filename. 
 
-The first 2 characters of the hash, segregate the
-folder hierarchy. The rest of the hash is used as
-filename.
-
-If the -u option is recived, the names of every 
-file will be recreated with the same inode as those
-under .hashref.
-
-A special file called version is kept inside .hashref
+A special file called VERSION is kept inside .hashref
 for future incompatibilities.
 
 Instructing rsync to preserve hardlinks while including
