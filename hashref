@@ -39,7 +39,7 @@ _print_help() {
     Files are hardlinked inside the .hashref/objects folder
     with a name matching it's sha1 hash.
 
-    The first 2 characters of the hash, correspond to a 
+    The first 3 characters of the hash, correspond to a 
     directory name, the rest is used for the actual filename. 
 
     A special file called VERSION is kept inside .hashref
@@ -80,8 +80,8 @@ hlink() {
 
     # segregate files, using the first two characters as
     # a folder name
-    mkdir -p .hashref/objects/$(echo "$sha1_file" | cut -c 1-2)
-    object_name=$(echo "$sha1_file" | sed 's@..@&/@')
+    mkdir -p .hashref/objects/$(echo "$sha1_file" | cut -c 1-3)
+    object_name=$(echo "$sha1_file" | sed 's@...@&/@')
 
     # hardlink the file using it's hash as filename
     cp -l -f "./$filename" .hashref/objects/"$object_name"
