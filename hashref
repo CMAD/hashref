@@ -16,15 +16,12 @@
 #You should have received a copy of the GNU General Public License
 #along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-version="0.1beta1" 
+version="0.1beta2" 
 
 _print_help() {
   cat <<"  EOF" | cut -c5-
     hashref provides a simple mechanism for tracking the 
     content of files across renaming.
-
-    On execution the .hashref directory is created on the 
-    current path, tracking the contents of every file below it.
 
     USAGE:
     hashref [ [ -f PATH ] [ -p ] [ -d ] ] | [ [ -v ] | [ -h ] ]
@@ -36,18 +33,37 @@ _print_help() {
       -v: version
       -h: this message
 
-    Files are hardlinked inside the .hashref/objects folder
-    with a name matching it's sha1 hash.
+    Instructing rsync to preserve hardlinks while including
+    the .hashref directory will avoid the transfer of files
+    on the basis of renaming.
+
+    On the first run every file below either the current
+    folder or the value of -f is hardlinked on .hashref.
+ 
+    A persistent name is given to it's copy by using it's
+    sha1 hash.
+
+    While using it's contents means creating a new reference
+    when it changes and deleting previous ones. A clean run 
+    will produce the same results no matter the host it's run.
 
     The first 3 characters of the hash, correspond to a 
-    directory name, the rest is used for the actual filename. 
+    directory name, the rest is used for the actual file. 
 
-    A special file called VERSION is kept inside .hashref
+    The hardlinks are kept below .hashref/objects.
+
+    A per-host inode-to-name mapping in .hashref/refs is used
+    to purge old references when a file changes.
+
+    Before running, the .hashref/CURRENT modification time is
+    updated. On completion .hashref/PREVIOUS reflects 
+    .hashref/CURRENT value.
+
+    Subsequent runs use .hashref/PREVIOUS to only take 
+    newer files into account.
+
+    A file called VERSION is kept inside .hashref
     for future incompatibilities.
-
-    Instructing rsync to preserve hardlinks while including
-    .hashref will avoid the transfer of files on the basis
-    of renaming.
 
   EOF
 }
@@ -68,30 +84,64 @@ while getopts f:pdvh PARAM; do
   esac
 done
 
-files() {
+# find all files below the current folder who are
+# newer than the previous run
+find_files() {
   # if it was run before, only include newer files
   if [ -e .hashref/PREVIOUS ]; then
     find . -type f -not -wholename '*/.hashref/*' \
       -newer .hashref/PREVIOUS -print0
   else
+  # otherwise include all files
     find . -type f -not -wholename '*/.hashref/*' -print0
   fi
 }
 
-hlink() {
+# create a file in .hashrefs/refs named after the local
+# hostname containing inode and filename of objects
+cache_object_inodes() {
+  find .hashref/objects/ -type f -printf "%i %p\n" | sort \
+    > .hashref/refs/$(hostname)
+}
+
+# print the filename of objects matching the same inode
+objects_by_inode() {
+  xargs -n1 -I{} grep '^{} ' .hashref/refs/$(hostname) | \
+    cut -d' ' -f2
+}
+
+# delete any objects with the same inode
+purge_objects_by_filename() {
+   stat --printf="%i\n" "$filename" | objects_by_inode | xargs -n1 rm -f
+}
+
+# read a list of files from stdin and point hardlinks
+# inside .hashref/objects to them using it's sha1 hash
+# as filename
+create_objects() {
   local IFS=''
   while read -r -d $'\0' filename; do
     # get a hash for the contents of the file 
     sha1_file=$(sha1sum "$filename" | cut -d' ' -f1)
 
+    # delete any possibly duplicated references
+    purge_objects_by_filename "$filename"
+
     # segregate files, using the first three characters as
     # a folder name
-    mkdir -p .hashref/objects/$(echo "$sha1_file" | cut -c 1-3)
+    mkdir .hashref/objects/$(echo "$sha1_file" | cut -c 1-3) \
+      2>/dev/null
     object_name=$(echo "$sha1_file" | sed 's@...@&/@')
 
     # hardlink the file using it's hash as filename
     cp -l -f "./$filename" .hashref/objects/"$object_name"
   done
+}
+
+# delete files who only reside in .hashref/objects
+purge_orphans() {
+  find .hashref/objects/ -type f -printf "%n %p\n" | sort | \
+    grep '^1 ' | cut -d' ' -f2 | xargs rm -f
 }
 
 # get on the working directory
@@ -104,13 +154,25 @@ fi
 
 # make sure there is a .hashref folder
 # to write into
-mkdir .hashref 2>/dev/null
+mkdir -p .hashref/{refs,objects} 2>/dev/null
 
 # save current timestamp
 touch .hashref/CURRENT
 
+# create a object cache when running
+# on a new host
+if [ ! -e .hashref/refs/$(hostname) ]; then
+  cache_object_inodes
+fi
+
 # find and hardlink files
-files | hlink
+find_files | create_objects
+
+# delete files that no longer exist outside
+purge_orphans
+
+# generate local .hashref/refs
+cache_object_inodes
 
 # update reference timestamp for newer files
 touch .hashref/PREVIOUS -r .hashref/CURRENT
