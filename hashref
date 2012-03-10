@@ -112,7 +112,8 @@ objects_by_inode() {
 
 # delete any objects with the same inode
 purge_objects_by_filename() {
-   stat --printf="%i\n" "$filename" | objects_by_inode | xargs -n1 rm -f
+  stat --printf="%i\n" "$filename" | objects_by_inode | \
+    xargs -n1 rm -f
 }
 
 # read a list of files from stdin and point hardlinks
