@@ -19,53 +19,53 @@
 version="0.1beta2" 
 
 _print_help() {
-  cat <<"  EOF" | cut -c5-
-    hashref provides a simple mechanism for tracking the 
-    content of files across renaming.
+cat <<"EOF"
+hashref provides a simple mechanism for tracking the 
+content of files across renaming.
 
-    USAGE:
-    hashref [ [ -f PATH ] [ -p ] [ -d ] ] | [ [ -v ] | [ -h ] ]
+USAGE:
+hashref [ [ -f PATH ] [ -p ] [ -d ] ] | [ [ -v ] | [ -h ] ]
 
-    OPTIONS:
-      -f: src folder
-      -p: purge before running
-      -d: debug
-      -v: version
-      -h: this message
+OPTIONS:
+  -f: src folder
+  -p: purge before running
+  -d: debug
+  -v: version
+  -h: this message
 
-    Instructing rsync to preserve hardlinks while including
-    the .hashref directory will avoid the transfer of files
-    on the basis of renaming.
+Instructing rsync to preserve hardlinks while including
+the .hashref directory will avoid the transfer of files
+on the basis of renaming.
 
-    On the first run every file below either the current
-    folder or the value of -f is hardlinked on .hashref.
+On the first run every file below either the current
+folder or the value of -f is hardlinked on .hashref.
  
-    A persistent name is given to it's copy by using it's
-    sha1 hash.
+A persistent name is given to it's copy by using it's
+sha1 hash.
 
-    While using it's contents means creating a new reference
-    when it changes and deleting previous ones. A clean run 
-    will produce the same results no matter the host it's run.
+While using it's contents means creating a new reference
+when it changes and deleting previous ones. A clean run 
+will produce the same results no matter the host it's run.
 
-    The first 3 characters of the hash, correspond to a 
-    directory name, the rest is used for the actual file. 
+The first 3 characters of the hash, correspond to a 
+directory name, the rest is used for the actual file. 
 
-    The hardlinks are kept below .hashref/objects.
+The hardlinks are kept below .hashref/objects.
 
-    A per-host inode-to-name mapping in .hashref/refs is used
-    to purge old references when a file changes.
+A per-host inode-to-name mapping in .hashref/refs is used
+to purge old references when a file changes.
 
-    Before running, the .hashref/CURRENT modification time is
-    updated. On completion .hashref/PREVIOUS reflects 
-    .hashref/CURRENT value.
+Before running, the .hashref/CURRENT modification time is
+updated. On completion .hashref/PREVIOUS reflects 
+.hashref/CURRENT value.
 
-    Subsequent runs use .hashref/PREVIOUS to only take 
-    newer files into account.
+Subsequent runs use .hashref/PREVIOUS to only take 
+newer files into account.
 
-    A file called VERSION is kept inside .hashref
-    for future incompatibilities.
+A file called VERSION is kept inside .hashref
+for future incompatibilities.
 
-  EOF
+EOF
 }
 
 # parameter processing
@@ -92,7 +92,7 @@ find_files() {
     find . -type f -not -wholename '*/.hashref/*' \
       -newer .hashref/PREVIOUS -print0
   else
-  # otherwise include all files
+    # otherwise include all files
     find . -type f -not -wholename '*/.hashref/*' -print0
   fi
 }

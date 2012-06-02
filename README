@@ -17,7 +17,7 @@ on the basis of renaming.
 
 On the first run every file below either the current
 folder or the value of -f is hardlinked on .hashref.
-
+ 
 A persistent name is given to it's copy by using it's
 sha1 hash.
 
